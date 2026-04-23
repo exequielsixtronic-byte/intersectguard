@@ -185,6 +185,44 @@
   .corner-bottom-left { bottom: 8px; left: 8px; }
   .corner-bottom-right { bottom: 8px; right: 8px; text-align: right; }
 
+  .distance-nav {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 45;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    letter-spacing: 2px;
+    font-size: clamp(20px, 4.2vw, 46px);
+    color: #11ff77;
+    text-shadow: 0 0 14px rgba(17, 255, 119, 0.4);
+    padding: 2px 10px;
+    border: 1px solid rgba(17,255,119,0.25);
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .distance-nav.alert {
+    color: #ff2a2a;
+    border-color: rgba(255, 42, 42, 0.45);
+    text-shadow: 0 0 16px rgba(255, 42, 42, 0.55);
+  }
+
+  .direction-nav {
+    position: absolute;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 45;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(10px, 1.5vw, 16px);
+    color: rgba(17, 255, 119, 0.8);
+    letter-spacing: 1.4px;
+    padding: 2px 8px;
+    border: 1px solid rgba(17,255,119,0.2);
+    background: rgba(0, 0, 0, 0.4);
+  }
+
   .panel-inline {
     display: inline-flex;
     gap: 6px;
@@ -244,6 +282,8 @@
   <div class="radar-frame">
     <canvas id="radar"></canvas>
     <div class="radar-sweep"></div>
+    <div class="distance-nav" id="navDistance">---</div>
+    <div class="direction-nav" id="dirHint">SIN OBJETIVO</div>
     <div class="corner-text corner-top-left" id="distTxt">DIST: ---</div>
     <div class="corner-text corner-top-right" id="riskTxt">RIESGO: BAJO</div>
     <div class="corner-text corner-bottom-left" id="coordsTxt">LAT/LNG: ---</div>
@@ -374,6 +414,9 @@ function updateTelemetryUI() {
   document.getElementById('roomTxt').textContent = `SALA ${activeRoomCode}`;
   document.getElementById('otherSpeed').textContent = `VEL ${Math.round(remoteSpeed)} km/h`;
   document.getElementById('otherHeading').textContent = `HDG ${Math.round(otherHeading)}°`;
+  const navDistance = document.getElementById('navDistance');
+  navDistance.textContent = distText;
+  navDistance.classList.toggle('alert', currentDistance < 90);
 }
 
 function updateCarsFromGPS() {
@@ -459,28 +502,8 @@ function joinRoom() {
   updateTelemetryUI();
 }
 
-function drawGrid(cx, cy, radius) {
-  ctx.strokeStyle = 'rgba(17, 255, 119, 0.18)';
-  ctx.lineWidth = 1;
-  [0.25, 0.5, 0.75, 1].forEach((f) => {
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius * f, 0, Math.PI * 2);
-    ctx.stroke();
-  });
-  ctx.setLineDash([4, 5]);
-  ctx.beginPath();
-  ctx.moveTo(cx - radius, cy);
-  ctx.lineTo(cx + radius, cy);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - radius);
-  ctx.lineTo(cx, cy + radius);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function drawCarIcon(x, y, headingDeg, color, label) {
-  const size = Math.max(14, canvas.clientWidth * 0.028);
+function drawCarIcon(x, y, headingDeg, color, label, sizeFactor = 1) {
+  const size = Math.max(14, canvas.clientWidth * 0.028) * sizeFactor;
   const w = size;
   const h = size * 1.85;
   const r = size * 0.2;
@@ -534,68 +557,200 @@ function drawCarIcon(x, y, headingDeg, color, label) {
   ctx.fillText(label, x, y - h * 1.05);
 }
 
+function getViewFromWorld(east, north) {
+  const yaw = (myHeading * Math.PI) / 180;
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return {
+    x: east * c - north * s,
+    z: east * s + north * c
+  };
+}
+
+function projectViewPoint(vx, vz, w, h) {
+  if (vz < -18) return null;
+  const cx = w / 2;
+  const baseY = h * 0.88;
+  const horizonY = h * 0.2;
+  const zClamped = Math.max(vz, -18);
+  const depth = Math.min(Math.max((zClamped + 18) / (RANGE_M + 18), 0), 1);
+  const scale = 1.4 - depth * 1.08;
+  return {
+    x: cx + vx * scale * 1.22,
+    y: baseY - depth * (baseY - horizonY),
+    depth,
+    scale
+  };
+}
+
+function drawRoadLane(worldPoints, w, h, color, width = 1.2, dashed = false) {
+  let started = false;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  if (dashed) ctx.setLineDash([5, 7]);
+  ctx.beginPath();
+  for (const p of worldPoints) {
+    const view = getViewFromWorld(p.east, p.north);
+    const screen = projectViewPoint(view.x, view.z, w, h);
+    if (!screen) continue;
+    if (!started) {
+      ctx.moveTo(screen.x, screen.y);
+      started = true;
+    } else {
+      ctx.lineTo(screen.x, screen.y);
+    }
+  }
+  if (started) ctx.stroke();
+  if (dashed) ctx.setLineDash([]);
+}
+
+function drawPerspectiveRoads(w, h) {
+  ctx.fillStyle = 'rgba(17, 255, 119, 0.08)';
+  ctx.fillRect(0, h * 0.2, w, h * 0.8);
+
+  const axisMain = [];
+  const axisCross = [];
+  const edgeLeftA = [];
+  const edgeRightA = [];
+  const edgeLeftB = [];
+  const edgeRightB = [];
+  const laneA1 = [];
+  const laneA2 = [];
+  const laneB1 = [];
+  const laneB2 = [];
+
+  for (let d = -20; d <= RANGE_M + 40; d += 8) {
+    axisMain.push({ east: 0, north: d });
+    edgeLeftA.push({ east: -11, north: d });
+    edgeRightA.push({ east: 11, north: d });
+    laneA1.push({ east: -3.5, north: d });
+    laneA2.push({ east: 3.5, north: d });
+  }
+  for (let d = -80; d <= 80; d += 8) {
+    axisCross.push({ east: d, north: 0 });
+    edgeLeftB.push({ east: d, north: -11 });
+    edgeRightB.push({ east: d, north: 11 });
+    laneB1.push({ east: d, north: -3.5 });
+    laneB2.push({ east: d, north: 3.5 });
+  }
+
+  drawRoadLane(edgeLeftA, w, h, 'rgba(17,255,119,0.26)', 1.3);
+  drawRoadLane(edgeRightA, w, h, 'rgba(17,255,119,0.26)', 1.3);
+  drawRoadLane(edgeLeftB, w, h, 'rgba(17,255,119,0.22)', 1.2);
+  drawRoadLane(edgeRightB, w, h, 'rgba(17,255,119,0.22)', 1.2);
+
+  drawRoadLane(laneA1, w, h, 'rgba(17,255,119,0.22)', 1, true);
+  drawRoadLane(laneA2, w, h, 'rgba(17,255,119,0.22)', 1, true);
+  drawRoadLane(laneB1, w, h, 'rgba(17,255,119,0.18)', 1, true);
+  drawRoadLane(laneB2, w, h, 'rgba(17,255,119,0.18)', 1, true);
+
+  drawRoadLane(axisMain, w, h, 'rgba(17,255,119,0.34)', 1.5);
+  drawRoadLane(axisCross, w, h, 'rgba(17,255,119,0.22)', 1.2);
+}
+
+function updateDirectionHint(viewX, viewZ) {
+  const el = document.getElementById('dirHint');
+  if (currentDistance > 900 || !Number.isFinite(viewX) || !Number.isFinite(viewZ)) {
+    el.textContent = 'SIN OBJETIVO';
+    return;
+  }
+  const rel = Math.atan2(viewX, viewZ) * 180 / Math.PI;
+  const absDeg = Math.abs(rel);
+  let zone = 'FRENTE';
+  if (rel < -18) zone = absDeg > 145 ? 'ATRAS' : 'IZQ';
+  else if (rel > 18) zone = absDeg > 145 ? 'ATRAS' : 'DER';
+  const arrow = rel < -12 ? '↖' : rel > 12 ? '↗' : '↑';
+  el.textContent = `${arrow} ${zone} ${Math.round(absDeg)}°`;
+}
+
+function drawDirectionArrow(w, h, viewX, viewZ) {
+  if (currentDistance > 900 || !Number.isFinite(viewX) || !Number.isFinite(viewZ)) return;
+  const rel = Math.atan2(viewX, viewZ);
+  const x = w * 0.5;
+  const y = h * 0.14;
+  const size = Math.max(16, w * 0.02);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rel);
+  ctx.strokeStyle = currentDistance < 90 ? 'rgba(255,42,42,0.9)' : 'rgba(17,255,119,0.8)';
+  ctx.fillStyle = currentDistance < 90 ? 'rgba(255,42,42,0.9)' : 'rgba(17,255,119,0.8)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * 0.5, size * 0.5);
+  ctx.lineTo(0, size * 0.2);
+  ctx.lineTo(-size * 0.5, size * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawRadar(timeSec) {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
-  const cx = w / 2;
-  const cy = h / 2;
-  const radius = Math.min(w, h) * 0.45;
-  const scale = radius / RANGE_M;
+  const horizonY = h * 0.2;
+  const baseY = h * 0.88;
 
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, w, h);
 
-  const radial = ctx.createRadialGradient(cx, cy, radius * 0.15, cx, cy, radius);
-  radial.addColorStop(0, 'rgba(17,255,119,0.08)');
-  radial.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = radial;
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, 'rgba(17,255,119,0.03)');
+  sky.addColorStop(0.22, 'rgba(17,255,119,0.08)');
+  sky.addColorStop(0.24, 'rgba(17,255,119,0.15)');
+  sky.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(17,255,119,0.35)';
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(0, horizonY);
+  ctx.lineTo(w, horizonY);
+  ctx.stroke();
 
-  drawGrid(cx, cy, radius);
+  drawPerspectiveRoads(w, h);
 
-  const spin = (timeSec * 0.95) % (Math.PI * 2);
-  const beamGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  beamGrad.addColorStop(0, 'rgba(17,255,119,0.24)');
+  const sweepX = ((timeSec * 0.24) % 1) * w;
+  const beamGrad = ctx.createLinearGradient(sweepX - 120, horizonY, sweepX + 120, h);
+  beamGrad.addColorStop(0, 'rgba(17,255,119,0)');
+  beamGrad.addColorStop(0.5, 'rgba(17,255,119,0.13)');
   beamGrad.addColorStop(1, 'rgba(17,255,119,0)');
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(spin);
   ctx.fillStyle = beamGrad;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.arc(0, 0, radius, -0.18, 0.18);
-  ctx.closePath();
-  ctx.fill();
+  ctx.fillRect(0, horizonY, w, h - horizonY);
   ctx.restore();
 
-  const ax = cx + carA.x * scale;
-  const ay = cy - carA.y * scale;
-  drawCarIcon(ax, ay, carA.heading, '#11ff77', 'VOS');
+  const vosX = w * 0.5;
+  const vosY = baseY;
+  drawCarIcon(vosX, vosY, 0, '#11ff77', 'VOS', 1.18);
 
+  let viewBX = NaN;
+  let viewBZ = NaN;
   if (Math.abs(carB.x) < RANGE_M * 2 && Math.abs(carB.y) < RANGE_M * 2) {
-    const bx = cx + carB.x * scale;
-    const by = cy - carB.y * scale;
-    drawCarIcon(bx, by, carB.heading, '#ff2a2a', 'AUTO B');
+    const view = getViewFromWorld(carB.x, carB.y);
+    viewBX = view.x;
+    viewBZ = view.z;
+    const projected = projectViewPoint(view.x, view.z, w, h);
+    if (projected) {
+      const relHeading = normalizeAngle(otherHeading - myHeading);
+      drawCarIcon(projected.x, projected.y, relHeading, '#ff2a2a', 'AUTO B', projected.scale);
 
-    if (currentDistance < 120) {
-      ctx.strokeStyle = currentDistance < 30 ? 'rgba(255,42,42,0.7)' : 'rgba(17,255,119,0.35)';
+      if (currentDistance < 150) {
+      ctx.strokeStyle = currentDistance < 90 ? 'rgba(255,42,42,0.75)' : 'rgba(17,255,119,0.35)';
       ctx.setLineDash([5, 6]);
       ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
+      ctx.moveTo(vosX, vosY);
+      ctx.lineTo(projected.x, projected.y);
       ctx.stroke();
       ctx.setLineDash([]);
+      }
     }
   }
 
-  ctx.strokeStyle = 'rgba(17,255,119,0.35)';
-  ctx.lineWidth = 1.3;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.stroke();
+  updateDirectionHint(viewBX, viewBZ);
+  drawDirectionArrow(w, h, viewBX, viewBZ);
 }
 
 function runAudioAlerts(nowMs) {
