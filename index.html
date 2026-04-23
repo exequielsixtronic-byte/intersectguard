@@ -3,415 +3,449 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0a0f1e">
+<meta name="theme-color" content="#000000">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>IntersectGuard — Radar</title>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<title>Radar HUD</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #060b18;
-    --panel: #0d1526;
-    --border: #1a2e50;
-    --accent: #00e5ff;
-    --danger: #ff3b3b;
-    --warn: #ffaa00;
-    --safe: #00ff88;
-    --self: #00aaff;
-    --grid: rgba(0, 229, 255, 0.06);
-    --glow: 0 0 20px rgba(0, 229, 255, 0.4);
+    --bg: #000000;
+    --hud: #11ff77;
+    --danger: #ff2a2a;
+    --dim: rgba(17, 255, 119, 0.42);
+    --dim-danger: rgba(255, 42, 42, 0.65);
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
 
   body {
     background: var(--bg);
-    color: #e0f0ff;
+    color: var(--hud);
     font-family: 'Share Tech Mono', monospace;
     min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
     user-select: none;
+    position: relative;
   }
 
-  /* HEADER */
-  header {
-    padding: 12px 16px 10px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    background:
+      repeating-linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.04) 0px,
+        rgba(255, 255, 255, 0.04) 1px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(0, 0, 0, 0) 4px
+      );
+    animation: crtScan 7s linear infinite;
+    mix-blend-mode: screen;
   }
 
-  .logo {
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 900;
-    font-size: 15px;
-    letter-spacing: 2px;
-    color: var(--accent);
-    text-shadow: var(--glow);
+  @keyframes crtScan {
+    from { transform: translateY(-12px); }
+    to { transform: translateY(12px); }
   }
 
-  .logo span { color: #fff; }
-
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--safe);
-    box-shadow: 0 0 8px var(--safe);
-    animation: pulse-dot 2s infinite;
-  }
-
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  /* MAIN LAYOUT */
-  main {
-    flex: 1;
+  .hud-shell {
+    position: relative;
+    width: 100vw;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    padding: 12px;
-    gap: 10px;
-  }
-
-  /* RADAR CANVAS AREA */
-  .radar-wrapper {
-    flex: 1;
-    position: relative;
-    display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 0;
-  }
-
-  canvas#radar {
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 0 30px rgba(0, 229, 255, 0.08), inset 0 0 40px rgba(0,0,0,0.5);
-    max-width: 100%;
-    max-height: 100%;
-    display: block;
-  }
-
-  /* ALERT BANNER */
-  .alert-banner {
-    position: absolute;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 8px 20px;
-    border-radius: 6px;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-align: center;
-    white-space: nowrap;
-    transition: all 0.3s ease;
-    pointer-events: none;
-    opacity: 0;
-  }
-
-  .alert-banner.show { opacity: 1; }
-
-  .alert-banner.safe {
-    background: rgba(0, 255, 136, 0.15);
-    border: 1px solid var(--safe);
-    color: var(--safe);
-    text-shadow: 0 0 10px var(--safe);
-  }
-
-  .alert-banner.warn {
-    background: rgba(255, 170, 0, 0.15);
-    border: 1px solid var(--warn);
-    color: var(--warn);
-    text-shadow: 0 0 10px var(--warn);
-    animation: flash-warn 0.5s infinite alternate;
-  }
-
-  .alert-banner.danger {
-    background: rgba(255, 59, 59, 0.2);
-    border: 1px solid var(--danger);
-    color: var(--danger);
-    text-shadow: 0 0 10px var(--danger);
-    animation: flash-danger 0.25s infinite alternate;
-  }
-
-  @keyframes flash-warn { from { opacity: 0.7; } to { opacity: 1; } }
-  @keyframes flash-danger { from { opacity: 0.5; } to { opacity: 1; } }
-
-  /* INFO CARDS */
-  .info-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 8px;
-    flex-shrink: 0;
   }
 
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
+  .top-edge, .bottom-edge {
+    width: min(1100px, 96vw);
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .card-label {
-    font-size: 8px;
-    letter-spacing: 1.5px;
-    color: #4a6080;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(9px, 1.35vw, 12px);
+    letter-spacing: 1.7px;
     text-transform: uppercase;
+    color: var(--dim);
+    z-index: 20;
   }
 
-  .card-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--accent);
+  .top-edge {
+    margin-top: 8px;
   }
 
-  .card-value.danger-val { color: var(--danger); }
-  .card-value.warn-val { color: var(--warn); }
-  .card-value.safe-val { color: var(--safe); }
+  .bottom-edge {
+    margin-bottom: 8px;
+  }
 
-  /* CONTROLS */
-  .controls {
+  .edge-block {
     display: flex;
+    align-items: center;
     gap: 8px;
-    flex-shrink: 0;
+    border: 1px solid rgba(17, 255, 119, 0.28);
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.5);
+    min-height: 28px;
+  }
+
+  .edge-block.danger {
+    color: var(--dim-danger);
+    border-color: rgba(255, 42, 42, 0.45);
+  }
+
+  .radar-frame {
+    position: relative;
+    width: min(96vw, 96vh);
+    height: min(96vw, 96vh);
+    max-height: 80dvh;
+    max-width: 80vw;
+    min-width: 300px;
+    min-height: 300px;
+    border: 1px solid rgba(17, 255, 119, 0.3);
+    box-shadow:
+      0 0 28px rgba(17, 255, 119, 0.18),
+      inset 0 0 42px rgba(17, 255, 119, 0.06);
+    z-index: 10;
+  }
+
+  #radar {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #000;
+  }
+
+  .radar-sweep {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 30;
+    overflow: hidden;
+  }
+
+  .radar-sweep::before {
+    content: "";
+    position: absolute;
+    width: 70%;
+    height: 2px;
+    left: -80%;
+    top: 35%;
+    background: linear-gradient(90deg, rgba(17,255,119,0), rgba(17,255,119,0.75), rgba(17,255,119,0));
+    filter: blur(0.5px);
+    animation: sweepH 2.2s linear infinite;
+  }
+
+  .radar-sweep::after {
+    content: "";
+    position: absolute;
+    width: 2px;
+    height: 80%;
+    top: -90%;
+    left: 62%;
+    background: linear-gradient(180deg, rgba(17,255,119,0), rgba(17,255,119,0.7), rgba(17,255,119,0));
+    animation: sweepV 2.8s linear infinite;
+  }
+
+  @keyframes sweepH {
+    0% { left: -80%; }
+    100% { left: 110%; }
+  }
+
+  @keyframes sweepV {
+    0% { top: -90%; }
+    100% { top: 110%; }
+  }
+
+  .corner-text {
+    position: absolute;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(9px, 1.2vw, 11px);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--dim);
+    z-index: 40;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(17,255,119,0.22);
+  }
+
+  .corner-top-left { top: 8px; left: 8px; }
+  .corner-top-right { top: 8px; right: 8px; text-align: right; }
+  .corner-bottom-left { bottom: 8px; left: 8px; }
+  .corner-bottom-right { bottom: 8px; right: 8px; text-align: right; }
+
+  .panel-inline {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  #roomCodeInput {
+    width: 72px;
+    background: #000;
+    border: 1px solid rgba(17,255,119,0.35);
+    color: var(--hud);
+    padding: 4px 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    outline: none;
   }
 
   .btn {
-    flex: 1;
-    padding: 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    color: var(--accent);
+    border: 1px solid rgba(17,255,119,0.35);
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--hud);
     font-family: 'Orbitron', sans-serif;
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    cursor: pointer;
-    transition: all 0.2s;
+    letter-spacing: 1.2px;
     text-transform: uppercase;
-  }
-
-  .btn:active { transform: scale(0.97); }
-
-  .btn.primary {
-    background: rgba(0, 229, 255, 0.1);
-    border-color: var(--accent);
-    box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
-  }
-
-  .btn.danger-btn {
-    background: rgba(255, 59, 59, 0.1);
-    border-color: var(--danger);
-    color: var(--danger);
-  }
-
-  /* SCENARIO SELECTOR */
-  .scenario-row {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-
-  .scenario-btn {
-    flex: 1;
-    padding: 7px 4px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: transparent;
-    color: #4a6080;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 9px;
+    padding: 6px 9px;
     cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
   }
 
-  .scenario-btn.active {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(0, 229, 255, 0.08);
+  .btn:active { transform: scale(0.98); }
+
+  #soundBtn.enabled {
+    color: #001407;
+    background: var(--hud);
+    border-color: var(--hud);
+    box-shadow: 0 0 16px rgba(17, 255, 119, 0.45);
   }
 
-  /* GPS STATUS */
-  .gps-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 9px;
-    color: #4a6080;
-    flex-shrink: 0;
-  }
-
-  .gps-bar .gps-icon { color: var(--safe); font-size: 11px; }
-  .gps-coords { margin-left: auto; font-size: 8px; color: #2a4060; }
-
+  .danger-text { color: var(--danger); }
 </style>
 </head>
 <body>
-
-<header>
-  <div class="logo">INTERSECT<span>GUARD</span></div>
-  <div style="display:flex;align-items:center;gap:8px;font-size:9px;color:#2a4060;">
-    PROTO v0.1
-    <div class="status-dot"></div>
-  </div>
-</header>
-
-<main>
-  <!-- GPS Bar -->
-  <div class="gps-bar">
-    <span class="gps-icon">◉</span>
-    <span id="gpsStatus">Solicitando GPS...</span>
-    <span class="gps-coords" id="gpsCoords">---, ---</span>
+<div class="hud-shell">
+  <div class="top-edge">
+    <div class="edge-block">
+      <span>INTERSECT HUD</span>
+      <span id="gpsStatus">GPS INICIALIZANDO</span>
+    </div>
+    <div class="edge-block panel-inline">
+      <span>SALA</span>
+      <span id="roomCodeDisplay">----</span>
+      <input id="roomCodeInput" type="text" inputmode="numeric" maxlength="4" placeholder="0000">
+      <button class="btn" id="joinRoomBtn" onclick="joinRoom()">UNIR</button>
+    </div>
   </div>
 
-  <!-- Room Bar -->
-  <div class="gps-bar">
-    <span>SALA</span>
-    <span id="roomCodeDisplay" style="color:#00e5ff;font-family:'Orbitron',sans-serif;">----</span>
-    <input
-      id="roomCodeInput"
-      type="text"
-      inputmode="numeric"
-      maxlength="4"
-      placeholder="Código"
-      style="margin-left:auto;width:64px;background:#060b18;border:1px solid #1a2e50;border-radius:4px;color:#e0f0ff;padding:4px 6px;font-size:10px;"
-    >
-    <button
-      class="scenario-btn"
-      id="joinRoomBtn"
-      style="flex:0 0 auto;padding:6px 8px;font-size:9px;"
-      onclick="joinRoom()"
-    >
-      Unirse
-    </button>
-  </div>
-
-  <!-- Radar -->
-  <div class="radar-wrapper">
+  <div class="radar-frame">
     <canvas id="radar"></canvas>
-    <div class="alert-banner" id="alertBanner">ZONA SEGURA</div>
+    <div class="radar-sweep"></div>
+    <div class="corner-text corner-top-left" id="distTxt">DIST: ---</div>
+    <div class="corner-text corner-top-right" id="riskTxt">RIESGO: BAJO</div>
+    <div class="corner-text corner-bottom-left" id="coordsTxt">LAT/LNG: ---</div>
+    <div class="corner-text corner-bottom-right" id="roomTxt">SALA ----</div>
   </div>
 
-  <!-- Info Cards -->
-  <div class="info-row">
-    <div class="card">
-      <div class="card-label">Distancia</div>
-      <div class="card-value" id="distVal">---</div>
+  <div class="bottom-edge">
+    <div class="edge-block">
+      <span>AUTO B</span>
+      <span id="otherSpeed">VEL ---</span>
+      <span id="otherHeading">HDG ---</span>
     </div>
-    <div class="card">
-      <div class="card-label">Auto B vel.</div>
-      <div class="card-value" id="speedVal">---</div>
-    </div>
-    <div class="card">
-      <div class="card-label">Riesgo</div>
-      <div class="card-value safe-val" id="riskVal">BAJO</div>
+    <div class="edge-block">
+      <button class="btn" id="soundBtn">ACTIVAR SONIDO</button>
+      <span id="soundStatus">AUDIO BLOQUEADO</span>
     </div>
   </div>
-
-  <!-- Scenarios -->
-  <div class="scenario-row">
-    <button class="scenario-btn active" onclick="setScenario('approach')">Auto se acerca</button>
-    <button class="scenario-btn" onclick="setScenario('cross')">Cruce rápido</button>
-    <button class="scenario-btn" onclick="setScenario('stopped')">Auto frenado</button>
-    <button class="scenario-btn" onclick="setScenario('both')">Ambos autos</button>
-  </div>
-
-  <!-- Controls -->
-  <div class="controls">
-    <button class="btn primary" id="mainBtn" onclick="toggleSimulation()">▶ SIMULAR</button>
-    <button class="btn danger-btn" onclick="resetSim()">↺ RESET</button>
-  </div>
-</main>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 <script>
-// ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
 const firebaseConfig = {
-   apiKey: "AIzaSyAhNFOlbATXx0EZR--ofTHsmTw9d4vT0QI",
+  apiKey: "AIzaSyAhNFOlbATXx0EZR--ofTHsmTw9d4vT0QI",
   authDomain: "intersectguard.firebaseapp.com",
   projectId: "intersectguard",
   storageBucket: "intersectguard.firebasestorage.app",
   messagingSenderId: "155570860492",
   appId: "1:155570860492:web:7b2505a77772a51452ed69"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ─── CANVAS SETUP ───────────────────────────────────────────────────────────
 const canvas = document.getElementById('radar');
 const ctx = canvas.getContext('2d');
 
-function resizeCanvas() {
-  const wrapper = canvas.parentElement;
-  const size = Math.min(wrapper.clientWidth, wrapper.clientHeight) - 4;
-  canvas.width = size;
-  canvas.height = size;
-}
-resizeCanvas();
-window.addEventListener('resize', () => { resizeCanvas(); drawRadar(); });
-
-// ─── STATE ───────────────────────────────────────────────────────────────────
-const RANGE_M = 150; // metros de rango
-let running = false;
-let animFrame = null;
-let scenario = 'approach';
-let myGPS = { lat: -24.7821, lng: -65.4232 }; // Salta por default
-let gpsActive = false;
-let otherGPS = null;
-let remoteSpeed = 0;
+const RANGE_M = 150;
 const deviceId = Math.random().toString(36).slice(2, 10);
-let roomCode = String(Math.floor(Math.random() * 9000) + 1000);
-let activeRoomCode = roomCode;
+const generatedRoomCode = String(Math.floor(Math.random() * 9000) + 1000);
+
+let activeRoomCode = generatedRoomCode;
 let roomRef = null;
 let roomListener = null;
 let publishTimer = null;
-document.getElementById('roomCodeDisplay').textContent = roomCode;
+let renderFrame = null;
 
-// Autos en coordenadas relativas (metros desde centro de intersección)
-// x+ = este, y+ = norte
-let carA = { x: 0, y: -80, heading: 0, speed: 40, color: '#00aaff', label: 'VOS' };
-let carB = { x: 80, y: 0, heading: 270, speed: 55, color: '#ff3b3b', label: 'AUTO B' };
+let gpsActive = false;
+let myGPS = { lat: -24.7821, lng: -65.4232 };
+let otherGPS = null;
+let remoteSpeed = 0;
+let myHeading = 0;
+let otherHeading = 270;
+let lastMyFix = null;
+let lastOtherFix = null;
 
-let tick = 0;
-let scenarioConfig = {};
+let carA = { x: 0, y: 0, heading: 0, speed: 0, color: '#11ff77', label: 'VOS' };
+let carB = { x: 85, y: 40, heading: 270, speed: 0, color: '#ff2a2a', label: 'AUTO B' };
 
-// ─── GPS REAL ────────────────────────────────────────────────────────────────
-if (navigator.geolocation) {
-  navigator.geolocation.watchPosition(pos => {
-    myGPS.lat = pos.coords.latitude;
-    myGPS.lng = pos.coords.longitude;
-    gpsActive = true;
-    document.getElementById('gpsStatus').textContent = 'GPS activo — posición real';
-    document.getElementById('gpsStatus').style.color = '#00ff88';
-    document.getElementById('gpsCoords').textContent =
-      `${myGPS.lat.toFixed(5)}, ${myGPS.lng.toFixed(5)}`;
+let currentDistance = 999;
+let currentRisk = { level: 'BAJO', type: 'safe' };
+
+let audioCtx = null;
+let audioUnlocked = false;
+let nextBeepAt = 0;
+
+document.getElementById('roomCodeDisplay').textContent = generatedRoomCode;
+document.getElementById('roomTxt').textContent = `SALA ${activeRoomCode}`;
+
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(rect.width * ratio);
+  canvas.height = Math.floor(rect.height * ratio);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  drawRadar(performance.now() * 0.001);
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+function normalizeAngle(deg) {
+  const v = deg % 360;
+  return v < 0 ? v + 360 : v;
+}
+
+function bearingDeg(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => d * Math.PI / 180;
+  const toDeg = (r) => r * 180 / Math.PI;
+  const y = Math.sin(toRad(lng2 - lng1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lng2 - lng1));
+  return normalizeAngle(toDeg(Math.atan2(y, x)));
+}
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const toRad = (d) => d * Math.PI / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function gpsDeltaMeters(lat1, lng1, lat2, lng2) {
+  const R = 6378137;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const avgLat = ((lat1 + lat2) / 2) * (Math.PI / 180);
+  return {
+    east: dLng * R * Math.cos(avgLat),
+    north: dLat * R
+  };
+}
+
+function calcRisk(dist) {
+  if (dist < 30) return { level: 'CRITICO', type: 'danger' };
+  if (dist < 90) return { level: 'ALTO', type: 'warn' };
+  return { level: 'BAJO', type: 'safe' };
+}
+
+function updateTelemetryUI() {
+  const distText = currentDistance > 900 ? '>150m' : `${Math.round(currentDistance)}m`;
+  document.getElementById('distTxt').textContent = `DIST: ${distText}`;
+  document.getElementById('riskTxt').textContent = `RIESGO: ${currentRisk.level}`;
+  document.getElementById('riskTxt').classList.toggle('danger-text', currentRisk.type === 'danger');
+  document.getElementById('coordsTxt').textContent = `LAT/LNG: ${myGPS.lat.toFixed(5)}, ${myGPS.lng.toFixed(5)}`;
+  document.getElementById('roomTxt').textContent = `SALA ${activeRoomCode}`;
+  document.getElementById('otherSpeed').textContent = `VEL ${Math.round(remoteSpeed)} km/h`;
+  document.getElementById('otherHeading').textContent = `HDG ${Math.round(otherHeading)}°`;
+}
+
+function updateCarsFromGPS() {
+  carA.x = 0;
+  carA.y = 0;
+  carA.heading = myHeading;
+  carA.speed = 0;
+  if (otherGPS) {
+    const delta = gpsDeltaMeters(myGPS.lat, myGPS.lng, otherGPS.lat, otherGPS.lng);
+    carB.x = delta.east;
+    carB.y = delta.north;
+    carB.heading = otherHeading;
+    carB.speed = remoteSpeed;
+    currentDistance = haversineMeters(myGPS.lat, myGPS.lng, otherGPS.lat, otherGPS.lng);
+  } else {
+    carB.x = 9999;
+    carB.y = 9999;
+    carB.speed = 0;
+    currentDistance = 999;
+  }
+  currentRisk = calcRisk(currentDistance);
+  updateTelemetryUI();
+  drawRadar(performance.now() * 0.001);
+}
+
+function publishMyPosition() {
+  if (!gpsActive || !activeRoomCode) return;
+  db.ref(`rooms/${activeRoomCode}/${deviceId}`).set({
+    lat: myGPS.lat,
+    lng: myGPS.lng,
+    speed: Number(carA.speed) || 0,
+    heading: Number(myHeading) || 0,
+    updatedAt: Date.now()
+  });
+}
+
+function startRealtimePublishing() {
+  if (publishTimer) clearInterval(publishTimer);
+  publishTimer = setInterval(() => {
     publishMyPosition();
-    updateRealtimeFromGPS();
-  }, () => {
-    document.getElementById('gpsStatus').textContent = 'GPS no disponible — modo simulación';
-  }, { enableHighAccuracy: true });
-} else {
-  document.getElementById('gpsStatus').textContent = 'GPS no soportado — modo simulación';
+  }, 3000);
+}
+
+function subscribeToRoom() {
+  if (roomRef && roomListener) roomRef.off('value', roomListener);
+  roomRef = db.ref(`rooms/${activeRoomCode}`);
+  roomListener = (snapshot) => {
+    const data = snapshot.val() || {};
+    const otherDevice = Object.keys(data).find((id) => id !== deviceId);
+    if (!otherDevice) {
+      otherGPS = null;
+      remoteSpeed = 0;
+      updateCarsFromGPS();
+      return;
+    }
+    const payload = data[otherDevice];
+    if (!payload || typeof payload.lat !== 'number' || typeof payload.lng !== 'number') return;
+    if (lastOtherFix) {
+      const moved = haversineMeters(lastOtherFix.lat, lastOtherFix.lng, payload.lat, payload.lng);
+      if (moved > 1.4) {
+        otherHeading = bearingDeg(lastOtherFix.lat, lastOtherFix.lng, payload.lat, payload.lng);
+      }
+    }
+    lastOtherFix = { lat: payload.lat, lng: payload.lng };
+    otherGPS = { lat: payload.lat, lng: payload.lng };
+    remoteSpeed = Number(payload.speed) || 0;
+    if (typeof payload.heading === 'number' && Number.isFinite(payload.heading)) {
+      otherHeading = normalizeAngle(payload.heading);
+    }
+    updateCarsFromGPS(); // redibujo inmediato al recibir Firebase
+  };
+  roomRef.on('value', roomListener);
 }
 
 function joinRoom() {
@@ -422,363 +456,246 @@ function joinRoom() {
   document.getElementById('roomCodeDisplay').textContent = activeRoomCode;
   subscribeToRoom();
   publishMyPosition();
+  updateTelemetryUI();
 }
 
-function subscribeToRoom() {
-  if (roomRef && roomListener) roomRef.off('value', roomListener);
-  roomRef = db.ref(`rooms/${activeRoomCode}`);
-  roomListener = (snapshot) => {
-    const data = snapshot.val() || {};
-    const otherDevice = Object.keys(data).find(id => id !== deviceId);
-    if (!otherDevice) {
-      otherGPS = null;
-      remoteSpeed = 0;
-      return;
-    }
-    const payload = data[otherDevice];
-    if (payload && typeof payload.lat === 'number' && typeof payload.lng === 'number') {
-      otherGPS = { lat: payload.lat, lng: payload.lng };
-      remoteSpeed = Number(payload.speed) || 0;
-      updateRealtimeFromGPS();
-    }
-  };
-  roomRef.on('value', roomListener);
-}
-
-function publishMyPosition() {
-  if (!gpsActive || !activeRoomCode) return;
-  db.ref(`rooms/${activeRoomCode}/${deviceId}`).set({
-    lat: myGPS.lat,
-    lng: myGPS.lng,
-    speed: Number(carA.speed) || 0,
-    updatedAt: Date.now()
-  });
-}
-
-function startRealtimePublishing() {
-  if (publishTimer) clearInterval(publishTimer);
-  publishTimer = setInterval(() => publishMyPosition(), 2000);
-}
-
-window.addEventListener('beforeunload', () => {
-  if (publishTimer) clearInterval(publishTimer);
-  if (activeRoomCode) db.ref(`rooms/${activeRoomCode}/${deviceId}`).remove();
-});
-
-// ─── SCENARIOS ───────────────────────────────────────────────────────────────
-function setScenario(s) {
-  scenario = s;
-  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  resetSim();
-}
-
-function initScenario() {
-  tick = 0;
-  switch(scenario) {
-    case 'approach':
-      carA = { x: 0, y: -80, heading: 0, speed: 40, color: '#00aaff', label: 'VOS' };
-      carB = { x: 80, y: 0, heading: 270, speed: 55, color: '#ff3b3b', label: 'AUTO B' };
-      break;
-    case 'cross':
-      carA = { x: 0, y: -100, heading: 0, speed: 60, color: '#00aaff', label: 'VOS' };
-      carB = { x: 120, y: 0, heading: 270, speed: 80, color: '#ff3b3b', label: 'AUTO B' };
-      break;
-    case 'stopped':
-      carA = { x: 0, y: -90, heading: 0, speed: 40, color: '#00aaff', label: 'VOS' };
-      carB = { x: 30, y: 0, heading: 270, speed: 0, color: '#ffaa00', label: 'AUTO B' };
-      break;
-    case 'both':
-      carA = { x: 0, y: -100, heading: 0, speed: 45, color: '#00aaff', label: 'VOS' };
-      carB = { x: 100, y: 0, heading: 270, speed: 50, color: '#ff3b3b', label: 'AUTO B' };
-      break;
-  }
-}
-
-// ─── SIMULATION LOOP ─────────────────────────────────────────────────────────
-function toggleSimulation() {
-  running = !running;
-  document.getElementById('mainBtn').textContent = running ? '⏸ PAUSAR' : '▶ SIMULAR';
-  if (running) { initScenario(); loop(); }
-  else { cancelAnimationFrame(animFrame); }
-}
-
-function resetSim() {
-  running = false;
-  cancelAnimationFrame(animFrame);
-  document.getElementById('mainBtn').textContent = '▶ SIMULAR';
-  initScenario();
-  drawRadar();
-  updateCards(999, 0, 'BAJO');
-  setAlert('safe', 'ZONA SEGURA');
-}
-
-let lastTime = 0;
-function loop(ts = 0) {
-  const dt = Math.min((ts - lastTime) / 1000, 0.05); // segundos, capped
-  lastTime = ts;
-  tick++;
-
-  updateCars(dt);
-  const dist = calcDistance();
-  const risk = calcRisk(dist);
-  drawRadar();
-  updateCards(dist, carB.speed, risk.level);
-  setAlert(risk.type, risk.msg);
-
-  // Si los autos se pasan del centro, reiniciar suavemente
-  if (Math.abs(carA.y) > RANGE_M * 0.9 || Math.abs(carB.x) > RANGE_M * 0.9) {
-    setTimeout(() => { if(running) initScenario(); }, 1500);
-  }
-
-  if (running) animFrame = requestAnimationFrame(loop);
-}
-
-function updateCars(dt) {
-  const SPEED_SCALE = 0.8; // km/h → m/s visual scale
-
-  if (scenario === 'stopped') {
-    carA.y += (carA.speed * SPEED_SCALE) * dt;
-  } else {
-    carA.y += (carA.speed * SPEED_SCALE) * dt;
-    carB.x -= (carB.speed * SPEED_SCALE) * dt;
-  }
-}
-
-function calcDistance() {
-  if (gpsActive && otherGPS) {
-    return haversineMeters(myGPS.lat, myGPS.lng, otherGPS.lat, otherGPS.lng);
-  }
-  return Math.sqrt(Math.pow(carA.x - carB.x, 2) + Math.pow(carA.y - carB.y, 2));
-}
-
-function haversineMeters(lat1, lng1, lat2, lng2) {
-  const toRad = (deg) => deg * (Math.PI / 180);
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function gpsDeltaMeters(lat1, lng1, lat2, lng2) {
-  const R = 6378137;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLng = (lng2 - lng1) * (Math.PI / 180);
-  const avgLat = ((lat1 + lat2) / 2) * (Math.PI / 180);
-  const north = dLat * R;
-  const east = dLng * R * Math.cos(avgLat);
-  return { east, north };
-}
-
-function updateRealtimeFromGPS() {
-  if (!gpsActive || !otherGPS) return;
-  const delta = gpsDeltaMeters(myGPS.lat, myGPS.lng, otherGPS.lat, otherGPS.lng);
-  carA.x = 0;
-  carA.y = 0;
-  carB.x = delta.east;
-  carB.y = delta.north;
-  carB.speed = Math.round(remoteSpeed);
-  if (!running) {
-    const dist = calcDistance();
-    const risk = calcRisk(dist);
-    drawRadar();
-    updateCards(dist, carB.speed, risk.level);
-    setAlert(risk.type, risk.msg);
-  }
-}
-
-function calcRisk(dist) {
-  if (dist < 20) return { level: 'CRÍTICO', type: 'danger', msg: '⚠ PELIGRO — COLISIÓN INMINENTE' };
-  if (dist < 50) return { level: 'ALTO', type: 'warn', msg: '⚡ PRECAUCIÓN — AUTO DETECTADO' };
-  if (dist < 90) return { level: 'MEDIO', type: 'warn', msg: '◉ AUTO DETECTADO A ' + Math.round(dist) + 'M' };
-  return { level: 'BAJO', type: 'safe', msg: 'ZONA SEGURA' };
-}
-
-// ─── DRAW ────────────────────────────────────────────────────────────────────
-function drawRadar() {
-  const W = canvas.width, H = canvas.height;
-  const cx = W / 2, cy = H / 2;
-  const scale = (W * 0.45) / RANGE_M; // píxeles por metro
-
-  ctx.clearRect(0, 0, W, H);
-
-  // Background
-  const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.6);
-  bgGrad.addColorStop(0, '#0d1a30');
-  bgGrad.addColorStop(1, '#060b18');
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, W, H);
-
-  // Grid circles
-  ctx.strokeStyle = 'rgba(0, 229, 255, 0.07)';
+function drawGrid(cx, cy, radius) {
+  ctx.strokeStyle = 'rgba(17, 255, 119, 0.18)';
   ctx.lineWidth = 1;
-  [0.25, 0.5, 0.75, 1.0].forEach(r => {
+  [0.25, 0.5, 0.75, 1].forEach((f) => {
     ctx.beginPath();
-    ctx.arc(cx, cy, r * W * 0.45, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius * f, 0, Math.PI * 2);
     ctx.stroke();
   });
-
-  // Range labels
-  ctx.fillStyle = 'rgba(0, 229, 255, 0.25)';
-  ctx.font = `${W * 0.022}px Share Tech Mono`;
-  ctx.textAlign = 'center';
-  [37, 75, 112, 150].forEach((m, i) => {
-    const r = (i + 1) * 0.25 * W * 0.45;
-    ctx.fillText(m + 'm', cx + r + W * 0.02, cy - W * 0.01);
-  });
-
-  // Cross lines (calles)
-  ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+  ctx.setLineDash([4, 5]);
+  ctx.beginPath();
+  ctx.moveTo(cx - radius, cy);
+  ctx.lineTo(cx + radius, cy);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - radius);
+  ctx.lineTo(cx, cy + radius);
+  ctx.stroke();
   ctx.setLineDash([]);
-
-  // Intersection roads (calles)
-  const roadW = W * 0.1;
-  ctx.fillStyle = 'rgba(20, 40, 70, 0.8)';
-  ctx.fillRect(cx - roadW / 2, 0, roadW, H); // calle vertical
-  ctx.fillRect(0, cy - roadW / 2, W, roadW); // calle horizontal
-
-  // Road borders
-  ctx.strokeStyle = 'rgba(0, 229, 255, 0.15)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(cx - roadW / 2, 0, roadW, H);
-  ctx.strokeRect(0, cy - roadW / 2, W, roadW);
-
-  // Center intersection marker
-  ctx.fillStyle = 'rgba(0, 229, 255, 0.08)';
-  ctx.fillRect(cx - roadW / 2, cy - roadW / 2, roadW, roadW);
-  ctx.strokeStyle = 'rgba(0, 229, 255, 0.2)';
-  ctx.strokeRect(cx - roadW / 2, cy - roadW / 2, roadW, roadW);
-
-  // Direction arrows on roads
-  drawArrow(ctx, cx, cy + W * 0.3, cx, cy + W * 0.15, 'rgba(0,170,255,0.3)', W * 0.015);
-  drawArrow(ctx, cx - W * 0.3, cy, cx - W * 0.15, cy, 'rgba(255,59,59,0.3)', W * 0.015);
-
-  // Draw cars
-  drawCar(ctx, cx + carA.x * scale, cy - carA.y * scale, carA, scale, W);
-  drawCar(ctx, cx + carB.x * scale, cy - carB.y * scale, carB, scale, W);
-
-  // Line between cars (distance indicator)
-  const dist = calcDistance();
-  if (dist < 100) {
-    const alpha = 1 - dist / 100;
-    ctx.strokeStyle = `rgba(255, 170, 0, ${alpha * 0.6})`;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    ctx.moveTo(cx + carA.x * scale, cy - carA.y * scale);
-    ctx.lineTo(cx + carB.x * scale, cy - carB.y * scale);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Distance label on line
-    const midX = (cx + carA.x * scale + cx + carB.x * scale) / 2;
-    const midY = (cy - carA.y * scale + cy - carB.y * scale) / 2;
-    ctx.fillStyle = `rgba(255, 170, 0, ${alpha})`;
-    ctx.font = `bold ${W * 0.028}px Share Tech Mono`;
-    ctx.textAlign = 'center';
-    ctx.fillText(Math.round(dist) + 'm', midX, midY - 6);
-  }
-
-  // Compass
-  ctx.fillStyle = 'rgba(0, 229, 255, 0.4)';
-  ctx.font = `${W * 0.025}px Share Tech Mono`;
-  ctx.fillText('N', cx, W * 0.04);
-  ctx.fillText('S', cx, H - W * 0.01);
-  ctx.fillText('E', W - W * 0.02, cy);
-  ctx.fillText('O', W * 0.02, cy);
 }
 
-function drawCar(ctx, x, y, car, scale, W) {
-  const r = W * 0.038;
+function drawCarIcon(x, y, headingDeg, color, label) {
+  const size = Math.max(14, canvas.clientWidth * 0.028);
+  const w = size;
+  const h = size * 1.85;
+  const r = size * 0.2;
 
-  // Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, car.color + '40');
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate((headingDeg * Math.PI) / 180);
+
+  const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, h * 1.6);
+  glow.addColorStop(0, color + '44');
   glow.addColorStop(1, 'transparent');
   ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+  ctx.arc(0, 0, h * 1.55, 0, Math.PI * 2);
   ctx.fill();
 
-  // Car body
-  ctx.fillStyle = car.color;
-  ctx.shadowBlur = 12;
-  ctx.shadowColor = car.color;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Inner dot
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(x, y, r * 0.35, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Label
-  ctx.fillStyle = car.color;
-  ctx.font = `bold ${W * 0.028}px Orbitron`;
-  ctx.textAlign = 'center';
-  ctx.fillText(car.label, x, y - r - 5);
-
-  // Speed
-  if (car.speed > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = `${W * 0.022}px Share Tech Mono`;
-    ctx.fillText(car.speed + ' km/h', x, y + r + W * 0.03);
-  }
-}
-
-function drawArrow(ctx, fromX, fromY, toX, toY, color, size) {
-  const angle = Math.atan2(toY - fromY, toX - fromX);
   ctx.fillStyle = color;
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(toX, toY);
-  ctx.lineTo(toX - size * Math.cos(angle - Math.PI / 6), toY - size * Math.sin(angle - Math.PI / 6));
-  ctx.lineTo(toX - size * Math.cos(angle + Math.PI / 6), toY - size * Math.sin(angle + Math.PI / 6));
+  ctx.moveTo(0, -h / 2);
+  ctx.lineTo(w / 2 - r, -h / 2 + r);
+  ctx.quadraticCurveTo(w / 2, -h / 2 + r, w / 2, -h / 2 + r * 1.6);
+  ctx.lineTo(w / 2, h / 2 - r * 1.2);
+  ctx.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+  ctx.lineTo(-w / 2 + r, h / 2);
+  ctx.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r * 1.2);
+  ctx.lineTo(-w / 2, -h / 2 + r * 1.6);
+  ctx.quadraticCurveTo(-w / 2, -h / 2 + r, -w / 2 + r, -h / 2 + r);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#09100a';
+  ctx.fillRect(-w * 0.3, -h * 0.25, w * 0.6, h * 0.28);
+  ctx.fillRect(-w * 0.27, h * 0.12, w * 0.54, h * 0.18);
+
+  ctx.fillStyle = '#000';
+  const tireW = w * 0.13;
+  const tireH = h * 0.19;
+  ctx.fillRect(-w / 2 - tireW * 0.5, -h * 0.34, tireW, tireH);
+  ctx.fillRect(w / 2 - tireW * 0.5, -h * 0.34, tireW, tireH);
+  ctx.fillRect(-w / 2 - tireW * 0.5, h * 0.14, tireW, tireH);
+  ctx.fillRect(w / 2 - tireW * 0.5, h * 0.14, tireW, tireH);
+
+  ctx.restore();
+
+  ctx.fillStyle = color;
+  ctx.font = `bold ${Math.max(10, canvas.clientWidth * 0.014)}px Orbitron`;
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x, y - h * 1.05);
 }
 
-// ─── UI UPDATES ──────────────────────────────────────────────────────────────
-function updateCards(dist, speed, risk) {
-  const dEl = document.getElementById('distVal');
-  const sEl = document.getElementById('speedVal');
-  const rEl = document.getElementById('riskVal');
+function drawRadar(timeSec) {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = Math.min(w, h) * 0.45;
+  const scale = radius / RANGE_M;
 
-  dEl.textContent = dist > 900 ? '> 150m' : Math.round(dist) + 'm';
-  sEl.textContent = speed + ' km/h';
-  rEl.textContent = risk;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, w, h);
 
-  rEl.className = 'card-value';
-  if (risk === 'CRÍTICO') rEl.classList.add('danger-val');
-  else if (risk === 'ALTO' || risk === 'MEDIO') rEl.classList.add('warn-val');
-  else rEl.classList.add('safe-val');
+  const radial = ctx.createRadialGradient(cx, cy, radius * 0.15, cx, cy, radius);
+  radial.addColorStop(0, 'rgba(17,255,119,0.08)');
+  radial.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = radial;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  drawGrid(cx, cy, radius);
+
+  const spin = (timeSec * 0.95) % (Math.PI * 2);
+  const beamGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+  beamGrad.addColorStop(0, 'rgba(17,255,119,0.24)');
+  beamGrad.addColorStop(1, 'rgba(17,255,119,0)');
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(spin);
+  ctx.fillStyle = beamGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, radius, -0.18, 0.18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  const ax = cx + carA.x * scale;
+  const ay = cy - carA.y * scale;
+  drawCarIcon(ax, ay, carA.heading, '#11ff77', 'VOS');
+
+  if (Math.abs(carB.x) < RANGE_M * 2 && Math.abs(carB.y) < RANGE_M * 2) {
+    const bx = cx + carB.x * scale;
+    const by = cy - carB.y * scale;
+    drawCarIcon(bx, by, carB.heading, '#ff2a2a', 'AUTO B');
+
+    if (currentDistance < 120) {
+      ctx.strokeStyle = currentDistance < 30 ? 'rgba(255,42,42,0.7)' : 'rgba(17,255,119,0.35)';
+      ctx.setLineDash([5, 6]);
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  ctx.strokeStyle = 'rgba(17,255,119,0.35)';
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
-function setAlert(type, msg) {
-  const el = document.getElementById('alertBanner');
-  el.textContent = msg;
-  el.className = 'alert-banner show ' + type;
+function runAudioAlerts(nowMs) {
+  if (!audioUnlocked || !audioCtx) return;
+  if (currentDistance >= 90) return;
+  if (nowMs < nextBeepAt) return;
 
-  // Vibration on danger
-  if (type === 'danger' && navigator.vibrate) navigator.vibrate([100, 50, 100]);
+  const urgent = currentDistance < 30;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = urgent ? 'square' : 'sine';
+  osc.frequency.value = urgent ? 1450 : 980;
+  gain.gain.value = urgent ? 0.11 : 0.06;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  const t0 = audioCtx.currentTime;
+  osc.start(t0);
+  osc.stop(t0 + (urgent ? 0.07 : 0.11));
+
+  nextBeepAt = nowMs + (urgent ? 200 : 750);
 }
 
-// ─── INIT ────────────────────────────────────────────────────────────────────
-initScenario();
+function maybeVibrate(nowMs) {
+  if (currentDistance >= 30 || !navigator.vibrate) return;
+  const slot = Math.floor(nowMs / 850);
+  if (maybeVibrate.lastSlot === slot) return;
+  maybeVibrate.lastSlot = slot;
+  navigator.vibrate([90, 50, 140]);
+}
+maybeVibrate.lastSlot = -1;
+
+function frame(now) {
+  drawRadar(now * 0.001);
+  runAudioAlerts(now);
+  maybeVibrate(now);
+  renderFrame = requestAnimationFrame(frame);
+}
+
+function setupAudioUnlock() {
+  const button = document.getElementById('soundBtn');
+  button.addEventListener('click', async () => {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state !== 'running') await audioCtx.resume();
+    audioUnlocked = true;
+    document.getElementById('soundStatus').textContent = 'AUDIO ACTIVO';
+    button.classList.add('enabled');
+  });
+}
+
+function setupGPS() {
+  const gpsStatus = document.getElementById('gpsStatus');
+  if (!navigator.geolocation) {
+    gpsStatus.textContent = 'GPS NO SOPORTADO';
+    return;
+  }
+
+  navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    gpsActive = true;
+
+    if (lastMyFix) {
+      const moved = haversineMeters(lastMyFix.lat, lastMyFix.lng, lat, lng);
+      if (moved > 1.2) {
+        myHeading = bearingDeg(lastMyFix.lat, lastMyFix.lng, lat, lng);
+      }
+    }
+
+    lastMyFix = { lat, lng };
+    myGPS.lat = lat;
+    myGPS.lng = lng;
+
+    gpsStatus.textContent = 'GPS ACTIVO';
+    publishMyPosition(); // publicar en cada cambio detectado
+    updateCarsFromGPS();
+  }, () => {
+    gpsStatus.textContent = 'GPS SIN SENAL';
+  }, {
+    enableHighAccuracy: true,
+    maximumAge: 1200,
+    timeout: 12000
+  });
+}
+
+function cleanUp() {
+  if (publishTimer) clearInterval(publishTimer);
+  if (renderFrame) cancelAnimationFrame(renderFrame);
+  if (activeRoomCode) db.ref(`rooms/${activeRoomCode}/${deviceId}`).remove();
+}
+
+window.addEventListener('beforeunload', cleanUp);
+
+setupAudioUnlock();
+setupGPS();
 subscribeToRoom();
-startRealtimePublishing();
-drawRadar();
-setAlert('safe', 'ZONA SEGURA');
+startRealtimePublishing(); // backup cada 3 segundos
+resizeCanvas();
+updateTelemetryUI();
+renderFrame = requestAnimationFrame(frame);
 </script>
 </body>
 </html>
